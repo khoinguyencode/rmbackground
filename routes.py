@@ -26,37 +26,54 @@ def allowed_file(filename):
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        try:
+            username = request.form['username']
+            password = request.form['password']
+            password_hash = hashlib.sha256(password.encode()).hexdigest()
 
+            user = get_user_by_username_and_password(username, password_hash)
+            
+            if user is None:
+                # Could be database error
+                flash('Login service temporarily unavailable. Please try again later.', 'danger')
+                return render_template('login.html')
 
-        user = get_user_by_username_and_password(username, password_hash)
+            if user:
+                # Check if user has verified their email
+                if not user.get('verified'):
+                    # Try to verify again from SES
+                    is_verified = update_verification_status(user['email'])
+                    if not is_verified:
+                        flash('Your email is not verified. Please check your inbox and verify your email before logging in.', 'warning')
+                        return redirect(url_for('main.login')) 
 
-        if user:
-            # Kiểm tra xem người dùng đã xác minh email chưa
-            if not user.get('verified'):
-                # Thử xác minh lại từ SES
-                is_verified = update_verification_status(user['email'])
-                if not is_verified:
-                    flash('Your email is not verified. Please check your inbox and verify your email before logging in.', 'warning')
-                    return redirect(url_for('main.login')) 
+                # Login successful
+                session['user_id'] = user['id']
+                session['user_email'] = user['email']
+                flash('Login successful', 'success')
+                return redirect(url_for('main.upload_file'))
 
-            # Nếu đã xác minh thành công thì tiếp tục đăng nhập
-            session['user_id'] = user['id']
-            session['user_email'] = user['email']
-            flash('Login successful', 'success')
-            return redirect(url_for('main.upload_file'))
-
-        # Nếu sai mật khẩu hoặc không tìm thấy user
-        user_attempts = get_user_attempts(username)
-        if user_attempts and user_attempts['login_attempts'] >= 3:
-            flash('Your account is locked due to too many failed login attempts.', 'danger')
-        else:
-            if user_attempts:
-                new_attempts = user_attempts['login_attempts'] + 1
-                update_user_attempts(username, new_attempts)
-            flash('Invalid credentials. Please try again.', 'danger')
+            # Wrong password or user not found
+            user_attempts = get_user_attempts(username)
+            if user_attempts is None:
+                # Database error
+                flash('Login service temporarily unavailable. Please try again later.', 'danger')
+                return render_template('login.html')
+                
+            if user_attempts and user_attempts['login_attempts'] >= 3:
+                flash('Your account is locked due to too many failed login attempts.', 'danger')
+            else:
+                if user_attempts:
+                    new_attempts = user_attempts['login_attempts'] + 1
+                    update_result = update_user_attempts(username, new_attempts)
+                    if not update_result:
+                        # Failed to update attempts
+                        logging.error(f"Failed to update login attempts for user {username}")
+                flash('Invalid credentials. Please try again.', 'danger')
+                
+        except Exception as e:
+            logging.error(f"Login error: {e}", exc_info=True)
+            flash('Login service temporarily unavailable. Please try again later.', 'danger')
 
     return render_template('login.html')
 
@@ -87,29 +104,85 @@ def upload_file():
             return render_template('index.html', logged_in=logged_in)
 
         try:
-            input_image = Image.open(file.stream).convert("RGBA")
-        except UnidentifiedImageError:
-            flash('Invalid image file.', 'danger')
-            return render_template('index.html', logged_in=logged_in)
+            # Save the uploaded file to memory first to ensure it's properly read
+            file_bytes = file.read()
+            if not file_bytes:
+                flash('Empty file uploaded', 'danger')
+                return render_template('index.html', logged_in=logged_in)
+                
+            # Reset file pointer
+            file_stream = BytesIO(file_bytes)
+            
+            try:
+                input_image = Image.open(file_stream).convert("RGBA")
+            except UnidentifiedImageError:
+                flash('Invalid image file.', 'danger')
+                return render_template('index.html', logged_in=logged_in)
 
-        try:
+            # Prepare input for rembg
             input_bytes = BytesIO()
             input_image.save(input_bytes, format='PNG')
             input_bytes = input_bytes.getvalue()
+            
+            if not input_bytes:
+                flash('Failed to process image data', 'danger')
+                return render_template('index.html', logged_in=logged_in)
 
+            # Process with rembg
             output_bytes = remove(input_bytes)
+            
+            if not output_bytes:
+                flash('Background removal failed - empty result', 'danger')
+                return render_template('index.html', logged_in=logged_in)
+                
             output_image = Image.open(BytesIO(output_bytes))
 
-            filename = f"image_rmbg_{int(time.time())}.png"
+            timestamp = int(time.time())
+            filename = f"image_rmbg_{timestamp}.png"
+            
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.join('static', 'processed'), exist_ok=True)
+            
+            # Save locally for processing
             save_path = os.path.join('static', 'processed', filename)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
             output_image.save(save_path)
+            
+            # Upload to S3 and get CloudFront URL
+            s3_key = f"remove-background-imgs/{filename}"
+            with open(save_path, 'rb') as image_file:
+                upload_success = upload_to_s3(image_file, BUCKET_NAME, s3_key)
+                if not upload_success:
+                    flash('Failed to upload processed image to storage', 'danger')
+                    return render_template('index.html', logged_in=logged_in)
+                
+            # Get CloudFront URL
+            cloudfront_url = get_s3_url(BUCKET_NAME, s3_key)
+            
+            # Store in database if user is logged in
+            if logged_in:
+                try:
+                    user_id = session['user_id']
+                    connection = get_db_connection()
+                    if connection:
+                        cursor = connection.cursor()
+                        # Store the processed image URL in the images table
+                        cursor.execute(
+                            'INSERT INTO images (user_id, url_background) VALUES (%s, %s)',
+                            (user_id, cloudfront_url)
+                        )
+                        connection.commit()
+                        cursor.close()
+                        connection.close()
+                        print(f"Stored processed image URL in database for user {user_id}")
+                except Exception as e:
+                    logging.error(f"Failed to store image in database: {e}")
+                    # Continue even if DB storage fails - we still have the image
 
             if not logged_in:
                 session['upload_count'] += 1
 
-            img_url = url_for('static', filename=f'processed/{filename}')
-            return render_template("result.html", img_url=img_url, filename=filename, logged_in=logged_in)
+            # Use CloudFront URL for the result page
+            return render_template("result.html", img_url=cloudfront_url, filename=filename, logged_in=logged_in)
 
         except Exception as e:
             logging.error("Exception occurred", exc_info=True)
@@ -160,20 +233,25 @@ def register():
         existing_user = get_user_by_username_and_password(username, password_hash)
         if existing_user:
             flash('Username already exists. Please choose another one.', 'danger')
-            return render_template('register.html')
+            return render_template('signup.html')
 
-        # goi ham verify_email o ben ses_helper.py
+        # Gọi hàm verify_email ở ses_helper.py
         if not verify_email(email):
             flash('Email verification failed. Please try again.', 'danger')
-            return render_template('register.html')
+            return render_template('signup.html')
         
-        # thong bao da gui email xac thuc
+        # Thông báo đã gửi email xác thực
         flash('Verification email sent. Please check your inbox.', 'success')
         
         # Tạo người dùng mới
-        create_user(username, password_hash, email)
-        
-        return redirect(url_for('main.login'))
+        try:
+            create_user(username, password_hash, email)
+            flash('Registration successful. Please verify your email before logging in.', 'success')
+            return redirect(url_for('main.login'))
+        except Exception as e:
+            logging.error(f"Failed to create user: {e}", exc_info=True)
+            flash('An error occurred during registration. Please try again.', 'danger')
+            return render_template('signup.html')
 
     return render_template('signup.html')
 
@@ -225,13 +303,24 @@ def apply_background():
 
         result = Image.alpha_composite(background, foreground)
 
-        new_filename = f"final_{int(time.time())}.png"
+        timestamp = int(time.time())
+        new_filename = f"final_{timestamp}.png"
+        
+        # Save locally for processing
         save_path = os.path.join('static', 'processed', new_filename)
         result.save(save_path)
+        
+        # Upload to S3 and get CloudFront URL
+        s3_key = f"remove-background-imgs/{new_filename}"
+        with open(save_path, 'rb') as image_file:
+            upload_to_s3(image_file, BUCKET_NAME, s3_key)
+            
+        # Get CloudFront URL
+        cloudfront_url = get_s3_url(BUCKET_NAME, s3_key)
+        
         user_id = session['user_id']
 
-        img_url = url_for('static', filename=f'processed/{new_filename}')
-        return render_template("result.html", img_url=img_url, filename=new_filename, logged_in='user_id' in session)
+        return render_template("result.html", img_url=cloudfront_url, filename=new_filename, logged_in='user_id' in session)
 
     except Exception as e:
         logging.error("Background change failed", exc_info=True)

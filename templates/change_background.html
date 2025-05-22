@@ -1,102 +1,100 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Change Background</title>
-    <link
-      rel="stylesheet"
-      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
-    />
-  </head>
-  <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-      <div class="container">
-        <a class="navbar-brand" href="{{ url_for('main.upload_file') }}"
-          >ImageTool</a
-        >
-        <div class="ml-auto">
-          {% if logged_in %}
-          <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger"
-            >Logout</a
-          >
-          {% else %}
-          <a href="{{ url_for('main.login') }}" class="btn btn-outline-primary"
-            >Sign In / Sign Up</a
-          >
-          {% endif %}
-        </div>
-      </div>
-    </nav>
+{% extends "base.html" %}
 
-    <div class="container mt-3">
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %} {% for category, message in messages %}
-      <div
-        class="alert alert-{{ category }} alert-dismissible fade show"
-        role="alert"
-      >
-        {{ message }}
-        <button
-          type="button"
-          class="close"
-          data-dismiss="alert"
-          aria-label="Close"
-        >
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      {% endfor %} {% endif %} {% endwith %}
+{% block title %}Change Background{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card">
+            <div class="card-body p-4">
+                <h1 class="text-center mb-4">Choose a Background</h1>
+                <p class="text-center text-muted mb-4">Select from our collection or upload your own background</p>
+                
+                <form method="POST" action="{{ url_for('main.apply_background') }}" id="background-form">
+                    <input type="hidden" name="filename" value="{{ filename }}">
+                    
+                    <!-- Background Grid -->
+                    <div class="row g-4 mb-5">
+                        {% if backgrounds %}
+                            {% for url in backgrounds %}
+                            <div class="col-md-4 col-lg-3">
+                                <div class="background-option" data-value="{{ url }}">
+                                    <input type="radio" name="background_url" value="{{ url }}" id="bg-{{ loop.index }}" class="d-none" required>
+                                    <label for="bg-{{ loop.index }}" class="w-100">
+                                        <img src="{{ url }}" alt="Background Option" class="img-fluid rounded">
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="col-12 text-center">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>No backgrounds available. Please upload your own.
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="text-center mb-5">
+                        <button class="btn btn-primary btn-lg px-5" type="submit" id="apply-btn" {% if not backgrounds %}disabled{% endif %}>
+                            <i class="fas fa-check me-2"></i>Apply Background
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Upload Your Own Background Section -->
+                <div class="card bg-light">
+                    <div class="card-body p-4">
+                        <h4 class="mb-4"><i class="fas fa-upload me-2"></i>Upload Your Own Background</h4>
+                        
+                        <form method="POST" action="{{ url_for('main.upload_background') }}" enctype="multipart/form-data" class="row g-3 align-items-center">
+                            <input type="hidden" name="filename" value="{{ filename }}">
+                            
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <input type="file" name="background_file" class="form-control" accept="image/*" id="bg-file-input" required>
+                                    <label class="input-group-text" for="bg-file-input">
+                                        <i class="fas fa-image"></i>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <button class="btn btn-success w-100" type="submit">
+                                    <i class="fas fa-upload me-2"></i>Upload Background
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
+{% endblock %}
 
-    <div class="container mt-5">
-      <h2>Choose a Background</h2>
-      <form method="POST" action="{{ url_for('main.apply_background') }}">
-        <input type="hidden" name="filename" value="{{ filename }}" />
-        <div class="row">
-          {% for url in backgrounds %}
-          <div class="col-md-3 mb-3">
-            <label style="width: 100%">
-              <input
-                type="radio"
-                name="background_url"
-                value="{{ url }}"
-                required
-              />
-              <img src="{{ url }}" alt="Background" class="img-fluid mt-2" />
-            </label>
-          </div>
-          {% endfor %}
-        </div>
-        <button class="btn btn-success mt-3" type="submit">
-          Apply Background
-        </button>
-      </form>
-
-      <hr class="my-5" />
-
-      <h4>Add Your Own Background</h4>
-      <form
-        method="POST"
-        action="{{ url_for('main.upload_background') }}"
-        enctype="multipart/form-data"
-      >
-        <input type="hidden" name="filename" value="{{ filename }}" />
-        <div class="form-group">
-          <input
-            type="file"
-            name="background_file"
-            class="form-control-file"
-            accept="image/*"
-            required
-          />
-        </div>
-        <button class="btn btn-primary" type="submit">Upload Background</button>
-      </form>
-    </div>
-
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-  </body>
-</html>
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle background selection with visual feedback
+        const backgroundOptions = document.querySelectorAll('.background-option');
+        const applyBtn = document.getElementById('apply-btn');
+        
+        backgroundOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Clear previous selections
+                backgroundOptions.forEach(bg => bg.classList.remove('selected'));
+                
+                // Select this option
+                this.classList.add('selected');
+                const radioInput = this.querySelector('input[type="radio"]');
+                radioInput.checked = true;
+                
+                // Enable apply button
+                applyBtn.disabled = false;
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,56 +1,55 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Result</title>
-    <link
-      rel="stylesheet"
-      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
-    />
-  </head>
-  <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-      <div class="container">
-        <a class="navbar-brand" href="#">ImageTool</a>
-        <div class="ml-auto">
-          {% if logged_in %}
-          <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger">
-            Logout
-          </a>
-          {% else %}
-          <a href="{{ url_for('main.login') }}" class="btn btn-outline-primary">
-            Sign In / Sign Up
-          </a>
-          {% endif %}
+{% extends "base.html" %}
+
+{% block title %}Processed Image{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body p-5">
+                <h1 class="text-center mb-4">
+                    <i class="fas fa-check-circle text-success me-2"></i>Image Processed
+                </h1>
+                
+                <div class="text-center">
+                    <img src="{{ img_url }}" alt="Processed Image" class="result-img mb-4">
+                </div>
+                
+                <!-- Image URL -->
+                <div class="bg-light p-3 rounded mb-4">
+                    <div class="d-flex align-items-center">
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="{{ img_url }}" id="image-url" readonly>
+                            <button class="btn btn-outline-secondary copy-link-btn" type="button" onclick="copyToClipboard('{{ img_url }}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        <i class="fas fa-info-circle me-1"></i> This URL will be available for sharing
+                    </p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="d-flex flex-column flex-sm-row justify-content-center gap-3 mt-4">
+                    <a href="{{ url_for('main.download_file', filename=filename) }}" class="btn btn-primary">
+                        <i class="fas fa-download me-2"></i>Download Image
+                    </a>
+                    <a href="{{ url_for('main.change_background', filename=filename) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-image me-2"></i>Change Background
+                    </a>
+                    <a href="{{ url_for('main.upload_file') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-redo me-2"></i>Process Another Image
+                    </a>
+                </div>
+                
+                {% if not logged_in %}
+                <div class="alert alert-info text-center mt-4">
+                    <i class="fas fa-info-circle me-2"></i>You have used <strong>{{ session['upload_count'] }} of 3</strong> free uploads
+                </div>
+                {% endif %}
+            </div>
         </div>
-      </div>
-    </nav>
-
-    <div class="container mt-5">
-      <h1 class="text-center">Processed Image</h1>
-      <img src="{{ img_url }}" alt="Processed Image" class="img-fluid" />
-
-      <div class="text-center mt-3">
-        <a
-          href="{{ url_for('main.download_file', filename=filename) }}"
-          class="btn btn-primary"
-          >Download Image</a
-        >
-        <a
-          href="{{ url_for('main.change_background', filename=filename) }}"
-          class="btn btn-warning mt-3"
-          >Change Background</a
-        >
-      </div>
-
-      {% if not logged_in %}
-      <div class="mt-4">
-        <p class="text-center">
-          You have uploaded {{ session['upload_count'] }} / 3 images.
-        </p>
-      </div>
-      {% endif %}
     </div>
-  </body>
-</html>
+</div>
+{% endblock %}

@@ -38,14 +38,21 @@ def send_email_with_image_link(to_email, image_url):
         return False
 
 def verify_email(email):
-    if request.method == 'POST':
-        email = request.form['email']
     try:
+        # Check if email param was passed directly
+        if not email:
+            return False
+            
+        # Validate email format
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            return False
+            
+        # Try to verify the email identity
         ses.verify_email_identity(EmailAddress=email)
+        return True
     except Exception as e:
         print(f"Failed to send verification email: {e}")
-        return False 
-    return True
+        return False
 
 
 def get_email_verification_status(email):

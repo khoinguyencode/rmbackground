@@ -1,50 +1,68 @@
-<!DOCTYPE html>
-<html lang="en" dir="ltr">
-  <head>
-    <meta charset="utf-8" />
-    <title>Login</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='style.css') }}"
-    />
-    <link
-      href="https://fonts.googleapis.com/css?family=Arvo"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css"
-    />
-  </head>
+{% extends "base.html" %}
 
-  <body>
-    <div class="container" id="container">
-      <div class="overlay-container">
-        <form action="/register" method="POST">
-          <h1>Sign Up</h1>
-          <input type="email" name="email" placeholder="Email" />
-          <input type="text" name="username" placeholder="username" />
-          <input type="password" name="password" placeholder="Password" />
-          <button>Sign Up</button>
-        </form>
-      </div>
-      <div class="form-container sign-in-container">
-        <div class="overlay">
-          <div class="overlay-panel overlay-right">
-            <h1>Hi There!</h1>
-            <p>Enter your personal details to sign in an account with us</p>
-            <button
-              class="ghost"
-              id="signUp"
-              onclick="window.location.href='/login'"
-            >
-              Sign In
-            </button>
-          </div>
+{% block title %}Sign Up{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+        <div class="card">
+            <div class="card-body p-5">
+                <div class="text-center mb-4">
+                    <i class="fas fa-user-plus fa-3x text-primary mb-3"></i>
+                    <h2>Create Account</h2>
+                    <p class="text-muted">Sign up to get unlimited image processing</p>
+                </div>
+                
+                <form method="POST" action="{{ url_for('main.register') }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-user"></i>
+                            </span>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-envelope"></i>
+                            </span>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <small class="text-muted">We'll send a verification link to this email</small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary py-2">
+                            <i class="fas fa-user-plus me-2"></i>Create Account
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="text-center mt-4">
+                    <p class="mb-0">Already have an account? <a href="{{ url_for('main.login') }}">Sign in</a></p>
+                </div>
+            </div>
         </div>
-      </div>
+        
+        <div class="text-center mt-4">
+            <a href="{{ url_for('main.upload_file') }}" class="text-decoration-none">
+                <i class="fas fa-arrow-left me-1"></i> Back to Image Tool
+            </a>
+        </div>
     </div>
-
-    <script src="script.js" charset="utf-8"></script>
-  </body>
-</html>
+</div>
+{% endblock %}
